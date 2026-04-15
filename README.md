@@ -140,3 +140,4 @@ A kesobbi integracio backend oldali belepesi pontja:
 - [VPS deploy](./docs/vps-deployment.md)
 - [Backup es restore](./docs/backups.md)
 - [Managed Postgres atallas](./docs/managed-postgres.md)
+- [Developer setup](./README.developers.md)

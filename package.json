@@ -7,6 +7,8 @@
     "docker:up": "docker compose up --build",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",
+    "start:dev:medusa": "node ./scripts/start-dev-medusa.js",
+    "start:dev:storefront": "npm --prefix storefront run dev",
     "backend:dev": "npm --prefix backend run dev",
     "storefront:dev": "npm --prefix storefront run dev",
     "backend:migrate": "npm --prefix backend run migrate",
