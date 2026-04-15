@@ -1,0 +1,15 @@
+{
+  "name": "webshop-medusa",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Production-ready Medusa MVP monorepo",
+  "scripts": {
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "backend:dev": "npm --prefix backend run dev",
+    "storefront:dev": "npm --prefix storefront run dev",
+    "backend:migrate": "npm --prefix backend run migrate",
+    "backend:bootstrap": "npm --prefix backend run bootstrap"
+  }
+}

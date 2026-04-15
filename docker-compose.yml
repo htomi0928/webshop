@@ -1,0 +1,120 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DOCKER_DATABASE_URL}
+      STORE_CORS: ${PUBLIC_STORE_ORIGIN}
+      ADMIN_CORS: ${PUBLIC_ADMIN_ORIGIN}
+      AUTH_CORS: ${PUBLIC_AUTH_ORIGIN}
+      REDIS_URL: ${DOCKER_REDIS_URL}
+      CACHE_REDIS_URL: ${DOCKER_CACHE_REDIS_URL}
+      PUBLIC_STORE_ORIGIN: ${PUBLIC_STORE_ORIGIN}
+      JWT_SECRET: ${JWT_SECRET}
+      COOKIE_SECRET: ${COOKIE_SECRET}
+      PUBLISHABLE_API_KEY: ${PUBLISHABLE_API_KEY}
+      BOOTSTRAP_DEFAULT_REGION: ${BOOTSTRAP_DEFAULT_REGION}
+      BOOTSTRAP_DEFAULT_CURRENCY: ${BOOTSTRAP_DEFAULT_CURRENCY}
+      SIMPLEPAY_MERCHANT: ${SIMPLEPAY_MERCHANT}
+      SIMPLEPAY_SECRET_KEY: ${SIMPLEPAY_SECRET_KEY}
+      SIMPLEPAY_SANDBOX: ${SIMPLEPAY_SANDBOX}
+      SIMPLEPAY_SUCCESS_URL: ${SIMPLEPAY_SUCCESS_URL}
+      SIMPLEPAY_FAILURE_URL: ${SIMPLEPAY_FAILURE_URL}
+      SIMPLEPAY_CALLBACK_URL: ${SIMPLEPAY_CALLBACK_URL}
+      EVENTS_CONCURRENCY: ${EVENTS_CONCURRENCY}
+      RUN_BOOTSTRAP: ${RUN_BOOTSTRAP}
+      RUN_SEED_TEST_PRODUCTS: ${RUN_SEED_TEST_PRODUCTS}
+      MEDUSA_ADMIN_ONBOARDING_TYPE: nextjs
+      MEDUSA_ADMIN_ONBOARDING_NEXTJS_DIRECTORY: storefront
+    command: >
+      sh -c "set -e;
+             npm run migrate;
+             if [ \"${RUN_BOOTSTRAP}\" = \"true\" ]; then npm run bootstrap; fi;
+             if [ \"${RUN_SEED_TEST_PRODUCTS}\" = \"true\" ]; then npm run seed:test-products; fi;
+             npm run start:container"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:9000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+
+  storefront:
+    build:
+      context: ./storefront
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      MEDUSA_BACKEND_URL: ${STOREFRONT_MEDUSA_BACKEND_URL}
+      NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY}
+      NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
+      NEXT_PUBLIC_DEFAULT_REGION: ${NEXT_PUBLIC_DEFAULT_REGION}
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET}
+      NEXT_PUBLIC_STRIPE_KEY: ""
+
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+      storefront:
+        condition: service_started
+    environment:
+      CADDY_SITE_ADDRESS: ${CADDY_SITE_ADDRESS}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,8 @@
+{$CADDY_SITE_ADDRESS} {
+  encode zstd gzip
+
+  @backend path /store/* /auth/* /admin/* /app* /health
+  reverse_proxy @backend backend:9000
+
+  reverse_proxy storefront:8000
+}
