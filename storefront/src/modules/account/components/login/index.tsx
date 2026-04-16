@@ -4,6 +4,7 @@ import ErrorMessage from "@modules/checkout/components/error-message"
 import { SubmitButton } from "@modules/checkout/components/submit-button"
 import Input from "@modules/common/components/input"
 import GoogleSigninLink from "@modules/account/components/google-signin-link"
+import { useSearchParams } from "next/navigation"
 import { useActionState } from "react"
 
 type Props = {
@@ -12,6 +13,12 @@ type Props = {
 
 const Login = ({ setCurrentView }: Props) => {
   const [message, formAction] = useActionState(login, null)
+  const searchParams = useSearchParams()
+  const googleAuthError = searchParams.get("google_auth_error")
+  const googleAuthReason = searchParams.get("google_auth_reason")
+  const googleErrorMessage = googleAuthError
+    ? `Google bejelentkezes sikertelen volt: ${googleAuthReason || "ismeretlen hiba"}`
+    : null
 
   return (
     <div
@@ -42,7 +49,10 @@ const Login = ({ setCurrentView }: Props) => {
             data-testid="password-input"
           />
         </div>
-        <ErrorMessage error={message} data-testid="login-error-message" />
+        <ErrorMessage
+          error={message || googleErrorMessage}
+          data-testid="login-error-message"
+        />
         <SubmitButton data-testid="sign-in-button" className="w-full mt-6">
           Sign in
         </SubmitButton>

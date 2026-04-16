@@ -69,28 +69,57 @@ async function syncCart(token: string) {
 
 export async function GET(request: NextRequest) {
   const query = Object.fromEntries(request.nextUrl.searchParams.entries())
+  const countryCookie = request.cookies.get("oauth_country_code")?.value
   const countryCode =
     request.nextUrl.searchParams.get("countryCode") ||
+    countryCookie ||
     process.env.NEXT_PUBLIC_DEFAULT_REGION ||
     "hu"
 
   try {
     const token = await sdk.auth.callback("customer", "google", query)
-    await setAuthToken(token)
+    let sessionToken = token
 
     await linkOrCreateCustomer(token)
 
-    const refreshedToken = await sdk.auth.refresh({
-      authorization: `Bearer ${token}`,
-    })
+    try {
+      const refreshedToken = await sdk.auth.refresh({
+        authorization: `Bearer ${token}`,
+      })
+      if (refreshedToken) {
+        sessionToken = refreshedToken
+      }
+    } catch (refreshError) {
+      console.warn("[google-oauth] refresh failed, using callback token", refreshError)
+    }
 
-    await setAuthToken(refreshedToken)
-    await syncCart(refreshedToken)
+    await setAuthToken(sessionToken)
 
-    return NextResponse.redirect(new URL(`/${countryCode}/account`, getBaseUrl(request)))
-  } catch {
-    return NextResponse.redirect(
-      new URL(`/${countryCode}/account?google_auth_error=1`, getBaseUrl(request))
+    try {
+      await syncCart(sessionToken)
+    } catch (cartError) {
+      console.warn("[google-oauth] cart sync failed", cartError)
+    }
+
+    const response = NextResponse.redirect(
+      new URL(`/${countryCode}/account`, getBaseUrl(request))
     )
+    response.cookies.delete("oauth_country_code")
+    return response
+  } catch (error) {
+    console.error("[google-oauth] callback failed", error)
+    const reason =
+      error instanceof Error
+        ? error.message.slice(0, 160)
+        : "unknown_error"
+    const encodedReason = encodeURIComponent(reason)
+    const response = NextResponse.redirect(
+      new URL(
+        `/${countryCode}/account?google_auth_error=callback_failed&google_auth_reason=${encodedReason}`,
+        getBaseUrl(request)
+      )
+    )
+    response.cookies.delete("oauth_country_code")
+    return response
   }
 }

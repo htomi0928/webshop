@@ -10,16 +10,36 @@ export async function GET(request: NextRequest) {
     request.nextUrl.searchParams.get("countryCode") ||
     process.env.NEXT_PUBLIC_DEFAULT_REGION ||
     "hu"
-
-  const callbackUrl = `${getBaseUrl(request)}/api/auth/google/callback?countryCode=${countryCode}`
+  const callbackUrl =
+    process.env.GOOGLE_CALLBACK_URL ||
+    `${getBaseUrl(request)}/api/auth/google/callback`
 
   const result = await sdk.auth.login("customer", "google", {
     callback_url: callbackUrl,
   })
 
   if (typeof result === "string") {
-    return NextResponse.redirect(new URL(`/${countryCode}/account`, getBaseUrl(request)))
+    const fallbackCountryCode = process.env.NEXT_PUBLIC_DEFAULT_REGION || "hu"
+    const response = NextResponse.redirect(
+      new URL(`/${fallbackCountryCode}/account`, getBaseUrl(request))
+    )
+    response.cookies.set("oauth_country_code", countryCode, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 10,
+    })
+
+    return response
   }
 
-  return NextResponse.redirect(result.location)
+  const response = NextResponse.redirect(result.location)
+  response.cookies.set("oauth_country_code", countryCode, {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 10,
+  })
+
+  return response
 }
